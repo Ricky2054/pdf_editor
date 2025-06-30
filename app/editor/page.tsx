@@ -1856,6 +1856,50 @@ export default function EditorPage() {
 
             <Separator />
 
+            {/* Download Actions */}
+            <div>
+              <Label className="text-sm font-medium">Actions</Label>
+              <div className="space-y-2 mt-2">
+                <Button 
+                  variant={hasUnsavedChanges ? "default" : "outline"} 
+                  size="sm" 
+                  className="w-full" 
+                  onClick={saveDocument}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {hasUnsavedChanges ? "Save Changes" : "Saved"}
+                </Button>
+                {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) && (
+                  <Button variant="outline" size="sm" className="w-full" onClick={previewEditedPDF}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Preview Edited PDF
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" className="w-full" onClick={downloadPDF}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) ? "Download Edited PDF" : "Download Original"}
+                </Button>
+                {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) && (
+                  <div className="text-xs text-gray-500 text-center space-y-1 mt-2">
+                    {canvasAnnotations.size > 0 && (
+                      <p>Annotations on {canvasAnnotations.size} page(s)</p>
+                    )}
+                    {textEdits.size > 0 && (
+                      <p>Text edits on {textEdits.size} page(s)</p>
+                    )}
+                    {textReplacements.size > 0 && (
+                      <p>Text replacements on {textReplacements.size} page(s)</p>
+                    )}
+                    {textDeletions.size > 0 && (
+                      <p>Text deletions on {textDeletions.size} page(s)</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             <div>
               <Label className="text-sm font-medium">Tools</Label>
               {currentTool.type === "text" && (
@@ -2043,41 +2087,6 @@ export default function EditorPage() {
               <Button variant="outline" size="sm" className="w-full" onClick={clearAllAnnotations}>
                 Clear All Pages
               </Button>
-              <Button 
-                variant={hasUnsavedChanges ? "default" : "outline"} 
-                size="sm" 
-                className="w-full" 
-                onClick={saveDocument}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {hasUnsavedChanges ? "Save Changes" : "Saved"}
-              </Button>
-              {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) && (
-                <Button variant="outline" size="sm" className="w-full" onClick={previewEditedPDF}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Preview Edited PDF
-                </Button>
-              )}
-              <Button variant="outline" size="sm" className="w-full" onClick={downloadPDF}>
-                <Download className="h-4 w-4 mr-2" />
-                {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) ? "Download Edited PDF" : "Download Original"}
-              </Button>
-              {(canvasAnnotations.size > 0 || textEdits.size > 0 || textReplacements.size > 0 || textDeletions.size > 0) && (
-                <div className="text-xs text-gray-500 text-center space-y-1">
-                  {canvasAnnotations.size > 0 && (
-                    <p>Annotations on {canvasAnnotations.size} page(s)</p>
-                  )}
-                  {textEdits.size > 0 && (
-                    <p>Text edits on {textEdits.size} page(s)</p>
-                  )}
-                  {textReplacements.size > 0 && (
-                    <p>Text replacements on {textReplacements.size} page(s)</p>
-                  )}
-                  {textDeletions.size > 0 && (
-                    <p>Text deletions on {textDeletions.size} page(s)</p>
-                  )}
-              </div>
-              )}
             </div>
           </div>
         </Card>
