@@ -2431,12 +2431,24 @@ export default function EditorPage() {
                         boxShadow: textItem.isDeleted || textItem.isEdited ? '0 2px 8px rgba(0,0,0,0.15)' : undefined,
                       }}
                       onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        console.log("Clicked text item:", textItem.text)
-                        handleExtractedTextClick(textItem)
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (textInteractionMode === "edit" && !textItem.isDeleted) {
+                          setSelectedTextItem(textItem);
+                          console.log("[DEBUG] setSelectedTextItem:", textItem);
+                        } else if (textInteractionMode === "delete" && !textItem.isDeleted) {
+                          deleteExtractedTextItem(textItem.id);
+                          console.log("[DEBUG] deleteExtractedTextItem:", textItem.id);
+                        }
                       }}
                       title={textItem.isDeleted ? `Deleted: "${textItem.text}"` : textItem.isEdited ? `Edited: "${textItem.text}" → "${textItem.editedText}"` : `Click to ${textInteractionMode === "delete" ? "delete" : "edit"}: "${textItem.text}"`}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && textInteractionMode === "edit" && !textItem.isDeleted) {
+                          setSelectedTextItem(textItem);
+                          console.log("[DEBUG] setSelectedTextItem (keyboard):", textItem);
+                        }
+                      }}
                     >
                       {/* Triple-layer background for deleted text - maximum coverage */}
                       {textItem.isDeleted && (
