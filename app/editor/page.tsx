@@ -2551,12 +2551,12 @@ export default function EditorPage() {
                   {/* Active text edit input */}
                   {activeTextEdit && (
                     <div
-                      className="absolute border-2 border-blue-500 bg-white rounded p-2 shadow-lg"
+                      className="absolute border-2 border-blue-500 bg-white rounded p-2 shadow-lg pointer-events-auto"
                       style={{
                         left: activeTextEdit.x * scale,
                         top: activeTextEdit.y * scale,
                         width: Math.max(activeTextEdit.width * scale, 200),
-                        zIndex: 10,
+                        zIndex: 1000,
                       }}
                     >
                       <div className="space-y-2">
@@ -2606,12 +2606,12 @@ export default function EditorPage() {
                   {/* Extracted text edit interface */}
                   {selectedTextItem && textInteractionMode === "edit" && (
                     <div
-                      className="absolute border-2 border-green-500 bg-white rounded p-2 shadow-lg"
+                      className="absolute border-2 border-green-500 bg-white rounded p-2 shadow-lg pointer-events-auto"
                       style={{
                         left: selectedTextItem.x * scale,
                         top: (selectedTextItem.y + selectedTextItem.height + 10) * scale,
                         width: Math.max(selectedTextItem.width * scale, 250),
-                        zIndex: 25,
+                        zIndex: 1000,
                       }}
                     >
                       <div className="space-y-2">
