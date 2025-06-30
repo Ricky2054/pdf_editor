@@ -38,19 +38,24 @@ import { PDFDocument, rgb } from "pdf-lib"
 import { maskOriginalText } from "@/lib/pdf-editor"
 
 // Dynamically import react-pdf components to avoid SSR issues
+// @ts-ignore - react-pdf module types not available
 const Document = dynamic(
+  // @ts-ignore
   () => import("react-pdf").then((mod) => mod.Document),
   { ssr: false }
-)
+) as React.ComponentType<any>
 
+// @ts-ignore - react-pdf module types not available
 const Page = dynamic(
+  // @ts-ignore
   () => import("react-pdf").then((mod) => mod.Page),
   { ssr: false }
-)
+) as React.ComponentType<any>
 
 // Set up PDF.js worker for stable version 2.16.105
 if (typeof window !== 'undefined') {
-  import("react-pdf").then((mod) => {
+  // @ts-ignore - react-pdf types are not available
+  import("react-pdf").then((mod: any) => {
     try {
       // Use local worker file for stable version 2.16.105
       mod.pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
@@ -186,7 +191,8 @@ export default function EditorPage() {
     if (typeof window !== 'undefined') {
       console.log('Testing PDF.js initialization...')
       setTimeout(() => {
-        import("react-pdf").then((mod) => {
+        // @ts-ignore
+        import("react-pdf").then((mod: any) => {
           console.log('React-PDF loaded:', !!mod.pdfjs)
           console.log('PDF.js version:', mod.pdfjs?.version || 'unknown')
           console.log('Worker source:', mod.pdfjs?.GlobalWorkerOptions?.workerSrc || 'not set')
@@ -542,32 +548,26 @@ export default function EditorPage() {
     setRotation((prev) => (prev + 90) % 360)
   }
 
-  const handlePrevPage = () => {
+  // Helper to reset text editing state and restore canvas for a given page
+  const resetPageStateAndRestoreCanvas = (getNewPage: (prev: number) => number) => {
     saveCurrentPageCanvas()
-    // Reset text editing states when changing pages
     setDraggedTextId(null)
     setActiveTextEdit(null)
     setSelectedTextElement(null)
     setTextInteractionMode("edit")
     setCurrentPage((prev) => {
-      const newPage = Math.max(prev - 1, 1)
+      const newPage = getNewPage(prev)
       setTimeout(() => restorePageCanvas(newPage), 100)
       return newPage
     })
   }
 
+  const handlePrevPage = () => {
+    resetPageStateAndRestoreCanvas((prev) => Math.max(prev - 1, 1))
+  }
+
   const handleNextPage = () => {
-    saveCurrentPageCanvas()
-    // Reset text editing states when changing pages
-    setDraggedTextId(null)
-    setActiveTextEdit(null)
-    setSelectedTextElement(null)
-    setTextInteractionMode("edit")
-    setCurrentPage((prev) => {
-      const newPage = Math.min(prev + 1, numPages)
-      setTimeout(() => restorePageCanvas(newPage), 100)
-      return newPage
-    })
+    resetPageStateAndRestoreCanvas((prev) => Math.min(prev + 1, numPages))
   }
 
   const saveCurrentPageCanvas = () => {
@@ -932,7 +932,7 @@ export default function EditorPage() {
 
     // Manage text layer visibility (completely disabled old selection system)
   const setupTextSelection = () => {
-    const textLayer = document.querySelector('.react-pdf__Page__textContent')
+    const textLayer = document.querySelector('.react-pdf__Page__textContent') as HTMLElement
     console.log("Managing text layer visibility, found:", !!textLayer)
     console.log("Current tool:", currentTool.type)    
     console.log("Text extraction complete:", isTextExtractionComplete)
@@ -946,9 +946,9 @@ export default function EditorPage() {
       // Check if there are any text modifications on the current page
       const hasTextModifications = 
         (extractedTextContent.get(currentPage)?.some(item => item.isDeleted || item.isEdited)) ||
-        (textDeletions.get(currentPage)?.length > 0) ||
-        (textReplacements.get(currentPage)?.length > 0) ||
-        (textEdits.get(currentPage)?.length > 0)
+        ((textDeletions.get(currentPage)?.length || 0) > 0) ||
+        ((textReplacements.get(currentPage)?.length || 0) > 0) ||
+        ((textEdits.get(currentPage)?.length || 0) > 0)
 
       // ALWAYS disable old text layer interaction - only use extracted text system
       textLayer.style.pointerEvents = "none"
@@ -2068,6 +2068,7 @@ export default function EditorPage() {
                         />
                       </div>
                     )}
+                  </div>
                 )}
 
             {/* Text Tool Mode Selection */}
@@ -2184,42 +2185,46 @@ export default function EditorPage() {
                   onMouseUp={handleTextMouseUp}
                   onMouseLeave={handleTextMouseUp}
                 >
-                  <Document
-                    file={pdfFile || pdfUrl || undefined}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={onDocumentLoadError}
-                    onLoadProgress={({ loaded, total }) => {
-                      console.log(`PDF loading progress: ${loaded}/${total} (${Math.round(loaded / total * 100)}%)`)
-                    }}
-                    onItemClick={({ pageNumber }) => {
-                      console.log('Clicked on page:', pageNumber)
-                    }}
-                    options={{
-                      cMapUrl: 'https://unpkg.com/pdfjs-dist@2.16.105/cmaps/',
-                      cMapPacked: true,
-                      standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@2.16.105/standard_fonts/',
-                    }}
-                    loading={
-                      <div className="flex items-center justify-center p-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span className="ml-2">Loading PDF...</span>
-                      </div>
-                    }
-                  >
-                    <Page
-                      pageNumber={currentPage}
-                      scale={scale}
-                      rotate={rotation}
-                      renderTextLayer={true}
-                      renderAnnotationLayer={false}
-                      onLoadSuccess={() => {
-                        // Setup text selection when page loads
-                        setTimeout(() => {
-                          setupTextSelection()
-                        }, 200)
+                  {(Document as any) && (
+                    <Document
+                      file={pdfFile || pdfUrl || undefined}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={onDocumentLoadError}
+                      onLoadProgress={({ loaded, total }: { loaded: number; total: number }) => {
+                        console.log(`PDF loading progress: ${loaded}/${total} (${Math.round(loaded / total * 100)}%)`)
                       }}
-                    />
-                  </Document>
+                      onItemClick={({ pageNumber }: { pageNumber: number }) => {
+                        console.log('Clicked on page:', pageNumber)
+                      }}
+                      options={{
+                        cMapUrl: 'https://unpkg.com/pdfjs-dist@2.16.105/cmaps/',
+                        cMapPacked: true,
+                        standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@2.16.105/standard_fonts/',
+                      }}
+                      loading={
+                        <div className="flex items-center justify-center p-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <span className="ml-2">Loading PDF...</span>
+                        </div>
+                      }
+                    >
+                      {(Page as any) && (
+                        <Page
+                          pageNumber={currentPage}
+                          scale={scale}
+                          rotate={rotation}
+                          renderTextLayer={true}
+                          renderAnnotationLayer={false}
+                          onLoadSuccess={() => {
+                            // Setup text selection when page loads
+                            setTimeout(() => {
+                              setupTextSelection()
+                            }, 200)
+                          }}
+                        />
+                      )}
+                    </Document>
+                  )}
                   <canvas
                     ref={canvasRef}
                     className={`absolute top-0 left-0 ${
