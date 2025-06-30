@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import {
   FileText,
   Upload,
@@ -73,6 +74,8 @@ interface DrawingTool {
   type: "pen" | "highlighter" | "rectangle" | "circle" | "text" | "eraser"
   color: string
   size: number
+  fill: boolean
+  fillColor: string
 }
 
 interface TextEdit {
@@ -138,8 +141,10 @@ export default function EditorPage() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentTool, setCurrentTool] = useState<DrawingTool>({
     type: "pen",
-    color: "#FF0000", // Start with red for prominence
-    size: 3, // Slightly thicker for visibility
+    color: "#FF0000",
+    size: 3,
+    fill: false,
+    fillColor: "#FF0000",
   })
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
   const [tempCanvas, setTempCanvas] = useState<HTMLCanvasElement | null>(null)
@@ -703,6 +708,11 @@ export default function EditorPage() {
       const centerX = start.x + width / 2
       const centerY = start.y + height / 2
       ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+    }
+    // Fill shape if requested
+    if (currentTool.fill) {
+      ctx.fillStyle = currentTool.fillColor
+      ctx.fill()
     }
     ctx.stroke()
   }
@@ -2020,21 +2030,45 @@ export default function EditorPage() {
                 </div>
 
                 <div>
-              <Label className="text-sm font-medium">Size: {currentTool.size}px</Label>
-                  <Input
-                    type="range"
-                min="2"
-                max="30"
-                    value={currentTool.size}
-                onChange={(e) => setCurrentTool({ ...currentTool, size: parseInt(e.target.value) })}
-                className="w-full mt-2"
-                  />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>Fine</span>
-                <span>Bold</span>
-                <span>Extra Bold</span>
+                <Label className="text-sm font-medium">Size: {currentTool.size}px</Label>
+                <Input
+                  type="range"
+                  min="2"
+                  max="30"
+                  value={currentTool.size}
+                  onChange={(e) => setCurrentTool({ ...currentTool, size: parseInt(e.target.value) })}
+                  className="w-full mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Fine</span>
+                  <span>Bold</span>
+                  <span>Extra Bold</span>
+                  </div>
                 </div>
-              </div>
+
+                {/* Fill Options for shapes */}
+                {(currentTool.type === "rectangle" || currentTool.type === "circle") && (
+                  <div>
+                    <Label className="text-sm font-medium">Fill Shape?</Label>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <Switch
+                        checked={currentTool.fill}
+                        onCheckedChange={(value) => setCurrentTool({ ...currentTool, fill: value })}
+                      />
+                      <span className="text-sm">Enable Fill</span>
+                    </div>
+                    {currentTool.fill && (
+                      <div className="mt-2">
+                        <Label className="text-sm font-medium">Fill Color</Label>
+                        <Input
+                          type="color"
+                          value={currentTool.fillColor}
+                          onChange={(e) => setCurrentTool({ ...currentTool, fillColor: e.target.value })}
+                          className="w-full h-10 mt-2"
+                        />
+                      </div>
+                    )}
+                )}
 
             {/* Text Tool Mode Selection */}
             {currentTool.type === "text" && (
