@@ -141,6 +141,8 @@ export default function EditorPage() {
     color: "#FF0000", // Start with red for prominence
     size: 3, // Slightly thicker for visibility
   })
+  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
+  const [tempCanvas, setTempCanvas] = useState<HTMLCanvasElement | null>(null)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [canvasAnnotations, setCanvasAnnotations] = useState<Map<number, string>>(new Map())
   const [currentDocument, setCurrentDocument] = useState<any>(null)
@@ -598,8 +600,24 @@ export default function EditorPage() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
+    // Store starting point for shapes
+    setStartPoint({ x, y })
+
     const ctx = canvasRef.current.getContext("2d")
     if (ctx) {
+      // For shapes, we'll draw on mouse move and mouse up
+      if (currentTool.type === "rectangle" || currentTool.type === "circle") {
+        // Create a temporary canvas for preview
+        if (!tempCanvas) {
+          const temp = document.createElement('canvas')
+          temp.width = canvasRef.current.width
+          temp.height = canvasRef.current.height
+          setTempCanvas(temp)
+        }
+        return
+      }
+
+      // For freehand drawing tools
       ctx.beginPath()
       ctx.moveTo(x, y)
       // Common stroke settings
@@ -614,9 +632,9 @@ export default function EditorPage() {
         // Slightly larger width than selected size for cleaner edges
         ctx.lineWidth = currentTool.size * 1.5
         ctx.globalAlpha = 1.0
-      } else {
-      ctx.strokeStyle = currentTool.color
-      ctx.lineWidth = currentTool.size
+                    } else {
+        ctx.strokeStyle = currentTool.color
+        ctx.lineWidth = currentTool.size
         if (currentTool.type === "highlighter") {
           ctx.globalCompositeOperation = "multiply"
           ctx.globalAlpha = 0.7
@@ -629,14 +647,33 @@ export default function EditorPage() {
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !canvasRef.current) return
+    if (!isDrawing || !canvasRef.current || !startPoint) return
 
     const rect = canvasRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
     const ctx = canvasRef.current.getContext("2d")
-    if (ctx) {
+    if (!ctx) return
+
+    if (currentTool.type === "rectangle" || currentTool.type === "circle") {
+      // Clear and redraw for shape preview
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+      
+      // Restore any existing annotations for this page
+      const existingAnnotation = canvasAnnotations.get(currentPage)
+      if (existingAnnotation) {
+        const img = new Image()
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0)
+          drawShapePreview(ctx, startPoint, { x, y })
+        }
+        img.src = existingAnnotation
+      } else {
+        drawShapePreview(ctx, startPoint, { x, y })
+      }
+    } else {
+      // Freehand drawing
       if (currentTool.type === "eraser") {
         ctx.globalCompositeOperation = "destination-out"
         ctx.strokeStyle = "rgba(0,0,0,1)"
@@ -647,9 +684,35 @@ export default function EditorPage() {
     }
   }
 
+  const drawShapePreview = (ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }) => {
+    ctx.strokeStyle = currentTool.color
+    ctx.lineWidth = currentTool.size
+    ctx.globalCompositeOperation = "source-over"
+    ctx.globalAlpha = 1.0
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+
+    const width = end.x - start.x
+    const height = end.y - start.y
+
+    ctx.beginPath()
+    if (currentTool.type === "rectangle") {
+      ctx.rect(start.x, start.y, width, height)
+    } else if (currentTool.type === "circle") {
+      const radius = Math.sqrt(width * width + height * height) / 2
+      const centerX = start.x + width / 2
+      const centerY = start.y + height / 2
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+    }
+    ctx.stroke()
+  }
+
   const handleCanvasMouseUp = async () => {
     if (!isDrawing) return
     setIsDrawing(false)
+
+    // Reset start point for next drawing
+    setStartPoint(null)
 
     // Save canvas state for this page
     if (canvasRef.current) {
@@ -663,8 +726,8 @@ export default function EditorPage() {
     // Save annotation to database if we have a current document
     if (currentDocument && user && canvasRef.current) {
       try {
-      const canvas = canvasRef.current
-      const imageData = canvas.toDataURL()
+        const canvas = canvasRef.current
+        const imageData = canvas.toDataURL()
 
         const { error } = await supabase.from("annotations").insert([
           {
@@ -1862,13 +1925,6 @@ export default function EditorPage() {
                   <Circle className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant={currentTool.type === "text" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCurrentTool({ ...currentTool, type: "text" })}
-                >
-                  <Type className="h-4 w-4" />
-                </Button>
-                <Button
                   variant={currentTool.type === "eraser" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setCurrentTool({ ...currentTool, type: "eraser" })}
@@ -2123,7 +2179,12 @@ export default function EditorPage() {
                   </Document>
                   <canvas
                     ref={canvasRef}
-                    className="absolute top-0 left-0 cursor-crosshair"
+                    className={`absolute top-0 left-0 ${
+                      currentTool.type === "eraser" ? "cursor-cell" :
+                      currentTool.type === "text" ? "cursor-text" :
+                      currentTool.type === "rectangle" || currentTool.type === "circle" ? "cursor-crosshair" :
+                      "cursor-crosshair"
+                    }`}
                     style={{
                       width: `${612 * scale}px`,
                       height: `${792 * scale}px`,
