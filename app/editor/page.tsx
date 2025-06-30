@@ -1227,8 +1227,6 @@ export default function EditorPage() {
         description: "Creating a preview of the edited PDF...",
       })
 
-      // Reuse logic from downloadEditedPDF (copy of main steps)
-
       // Get the original PDF bytes
       let pdfBytes: ArrayBuffer
 
@@ -1237,7 +1235,7 @@ export default function EditorPage() {
       } else if (pdfUrl) {
         const response = await fetch(pdfUrl)
         pdfBytes = await response.arrayBuffer()
-    } else {
+      } else {
         throw new Error("No PDF source available")
       }
 
@@ -1245,23 +1243,211 @@ export default function EditorPage() {
       const pdfDoc = await PDFDocument.load(pdfBytes)
       const pages = pdfDoc.getPages()
 
-      // (Re-)draw canvas annotations, text edits, replacements, deletions onto pages similar to downloadEditedPDF
-      // For brevity, we simply call existing downloadEditedPDF logic and capture Uint8Array
-      // Instead of duplicating code, we will call helper that returns bytes
-
-      // --- START helper reuse ---
-      const applyEditsToPDF = async (): Promise<Uint8Array> => {
-        // Clone logic from downloadEditedPDF but return bytes
-        // NOTE: simplified – we call downloadEditedPDF but modify original to return instead of triggering download.
-        return new Uint8Array(await pdfDoc.save())
+      // Apply all edits to the PDF - same logic as downloadEditedPDF
+      
+      // Add annotations to each page that has them
+      for (const [pageNum, annotationData] of canvasAnnotations.entries()) {
+        if (pageNum <= pages.length && annotationData) {
+          const page = pages[pageNum - 1] // pdf-lib uses 0-based indexing
+          
+          // Convert canvas annotation to image
+          const img = new Image()
+          img.src = annotationData
+          
+          await new Promise((resolve) => {
+            img.onload = async () => {
+              // Create a canvas to get the image data
+              const tempCanvas = document.createElement('canvas')
+              const tempCtx = tempCanvas.getContext('2d')
+              tempCanvas.width = img.width
+              tempCanvas.height = img.height
+              
+              if (tempCtx) {
+                tempCtx.drawImage(img, 0, 0)
+                
+                // Enhance the annotation for PDF prominence
+                const enhancedCanvas = enhanceAnnotationForPDF(tempCanvas)
+                
+                // Convert enhanced canvas to PNG bytes
+                const pngDataUrl = enhancedCanvas.toDataURL('image/png', 1.0)
+                const pngBytes = pngDataUrl.split(',')[1]
+                const pngBuffer = Uint8Array.from(atob(pngBytes), c => c.charCodeAt(0))
+                
+                try {
+                  // Embed the enhanced annotation image
+                  const annotationImage = await pdfDoc.embedPng(pngBuffer)
+                  const { width, height } = page.getSize()
+                  
+                  // Scale the annotation to fit the page exactly
+                  const annotationDims = annotationImage.scale(width / img.width)
+                  
+                  // Draw the annotation prominently on the page (fully opaque)
+                  page.drawImage(annotationImage, {
+                    x: 0,
+                    y: height - annotationDims.height,
+                    width: annotationDims.width,
+                    height: annotationDims.height,
+                    opacity: 1.0, // Fully opaque for maximum prominence
+                  })
+                } catch (embedError) {
+                  console.warn(`Failed to embed annotation for page ${pageNum}:`, embedError)
+                }
+              }
+              resolve(void 0)
+            }
+          })
+        }
       }
 
-      const editedBytes = await applyEditsToPDF()
+      // Add text edits to each page that has them
+      for (const [pageNum, pageTextEdits] of textEdits.entries()) {
+        if (pageNum <= pages.length && pageTextEdits.length > 0) {
+          const page = pages[pageNum - 1] // pdf-lib uses 0-based indexing
+          const { height: pageHeight } = page.getSize()
 
+          for (const textEdit of pageTextEdits) {
+            try {
+              // Convert hex color to RGB
+              const hexToRgb = (hex: string) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+                return result ? {
+                  r: parseInt(result[1], 16) / 255,
+                  g: parseInt(result[2], 16) / 255,
+                  b: parseInt(result[3], 16) / 255
+                } : { r: 0, g: 0, b: 0 }
+              }
+
+              const color = hexToRgb(textEdit.fontColor)
+
+              // Draw text on the page
+              page.drawText(textEdit.newText, {
+                x: textEdit.x,
+                y: pageHeight - textEdit.y - textEdit.fontSize, // PDF coordinates are bottom-up
+                size: textEdit.fontSize,
+                color: rgb(color.r, color.g, color.b),
+              })
+            } catch (textError) {
+              console.warn(`Failed to add text edit for page ${pageNum}:`, textError)
+            }
+          }
+        }
+      }
+
+      // Add text replacements to each page that has them
+      for (const [pageNum, pageReplacements] of textReplacements.entries()) {
+        if (pageNum <= pages.length && pageReplacements.length > 0) {
+          const page = pages[pageNum - 1] // pdf-lib uses 0-based indexing
+          const { height: pageHeight } = page.getSize()
+
+          for (const replacement of pageReplacements) {
+            try {
+              // Convert hex color to RGB
+              const hexToRgb = (hex: string) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+                return result ? {
+                  r: parseInt(result[1], 16) / 255,
+                  g: parseInt(result[2], 16) / 255,
+                  b: parseInt(result[3], 16) / 255
+                } : { r: 0, g: 0, b: 0 }
+              }
+
+              const textColor = hexToRgb(replacement.fontColor)
+
+              // Mask the original text completely before drawing replacement
+              maskOriginalText(page, {
+                x: replacement.x,
+                y: pageHeight - replacement.y - replacement.height,
+                width: replacement.width,
+                height: replacement.height,
+              })
+
+              // Draw replacement text on top
+              page.drawText(replacement.newText, {
+                x: replacement.x + 2, // Small padding
+                y: pageHeight - replacement.y - replacement.fontSize + 2, // Adjust for text baseline
+                size: replacement.fontSize,
+                color: rgb(textColor.r, textColor.g, textColor.b),
+              })
+            } catch (replacementError) {
+              console.warn(`Failed to add text replacement for page ${pageNum}:`, replacementError)
+            }
+          }
+        }
+      }
+
+      // Handle text deletions by masking them
+      for (const [pageNum, pageDeletions] of textDeletions.entries()) {
+        if (pageNum <= pages.length && pageDeletions.length > 0) {
+          const page = pages[pageNum - 1]
+          const { height: pageHeight } = page.getSize()
+
+          for (const deletion of pageDeletions) {
+            try {
+              // Mask the deleted text area
+              maskOriginalText(page, {
+                x: deletion.x,
+                y: pageHeight - deletion.y - deletion.height,
+                width: deletion.width,
+                height: deletion.height,
+              })
+            } catch (deletionError) {
+              console.warn(`Failed to apply text deletion for page ${pageNum}:`, deletionError)
+            }
+          }
+        }
+      }
+
+      // Handle extracted text edits and deletions
+      for (const [pageNum, extractedItems] of extractedTextContent.entries()) {
+        if (pageNum <= pages.length && extractedItems.length > 0) {
+          const page = pages[pageNum - 1]
+          const { height: pageHeight } = page.getSize()
+
+          for (const item of extractedItems) {
+            try {
+              if (item.isDeleted) {
+                // Mask deleted text
+                maskOriginalText(page, {
+                  x: item.x,
+                  y: pageHeight - item.y - item.height,
+                  width: item.width,
+                  height: item.height,
+                })
+              } else if (item.isEdited && item.editedText) {
+                // Replace with edited text
+                maskOriginalText(page, {
+                  x: item.x,
+                  y: pageHeight - item.y - item.height,
+                  width: item.width,
+                  height: item.height,
+                })
+
+                // Draw new text
+                page.drawText(item.editedText, {
+                  x: item.x + 2,
+                  y: pageHeight - item.y - item.fontSize + 2,
+                  size: item.fontSize,
+                  color: rgb(0, 0, 0), // Default black color
+                })
+              }
+            } catch (extractedError) {
+              console.warn(`Failed to apply extracted text edit for page ${pageNum}:`, extractedError)
+            }
+          }
+        }
+      }
+
+      // Save the modified PDF
+      const editedBytes = await pdfDoc.save()
       const blob = new Blob([editedBytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
 
       window.open(url, '_blank')
+
+      toast({
+        title: "Preview Ready",
+        description: "Preview opened in new tab with all edits applied.",
+      })
 
     } catch (error) {
       console.error("Preview generation failed:", error)
