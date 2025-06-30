@@ -548,7 +548,7 @@ export default function EditorPage() {
     setDraggedTextId(null)
     setActiveTextEdit(null)
     setSelectedTextElement(null)
-    setTextInteractionMode("select")
+    setTextInteractionMode("edit")
     setCurrentPage((prev) => {
       const newPage = Math.max(prev - 1, 1)
       setTimeout(() => restorePageCanvas(newPage), 100)
@@ -562,7 +562,7 @@ export default function EditorPage() {
     setDraggedTextId(null)
     setActiveTextEdit(null)
     setSelectedTextElement(null)
-    setTextInteractionMode("select")
+    setTextInteractionMode("edit")
     setCurrentPage((prev) => {
       const newPage = Math.min(prev + 1, numPages)
       setTimeout(() => restorePageCanvas(newPage), 100)
@@ -1922,8 +1922,8 @@ export default function EditorPage() {
                 </div>
                     <div className="flex space-x-1">
                       <button
-                        className={`px-2 py-1 rounded text-xs font-medium ${textInteractionMode === "select" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
-                        onClick={() => setTextInteractionMode("select")}
+                        className={`px-2 py-1 rounded text-xs font-medium ${textInteractionMode === "edit" ? "bg-blue-500 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
+                        onClick={() => setTextInteractionMode("edit")}
                       >
                         ✏️ Edit/Replace
                       </button>
@@ -1935,7 +1935,7 @@ export default function EditorPage() {
                       </button>
               </div>
                     <div className="text-xs mt-1 p-1 bg-white rounded">
-                      {textInteractionMode === "select" && "💡 Select any text in the PDF to replace it with new text"}
+                      {textInteractionMode === "edit" && "💡 Select any text in the PDF to replace it with new text"}
                       {textInteractionMode === "delete" && "💡 Select any text in the PDF to delete it permanently"}
             </div>
                   </div>
@@ -2413,7 +2413,7 @@ export default function EditorPage() {
                             ? 'border-green-600 bg-white shadow-lg' 
                             : textInteractionMode === "delete" 
                               ? 'border-red-400 bg-red-100 bg-opacity-80 hover:border-red-600 hover:bg-red-200' 
-                              : 'border-blue-400 bg-blue-100 bg-opacity-80 hover:border-blue-600 hover:bg-blue-200'
+                              : 'border-blue-500 bg-blue-50 bg-opacity-90 hover:border-blue-700 hover:bg-blue-100'
                       }`}
                       style={{
                         left: (textItem.x - 1) * scale, // Extra padding for better coverage
@@ -2426,13 +2426,15 @@ export default function EditorPage() {
                         minHeight: '18px', // Ensure clickable area
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '2px 4px',
+                        padding: '3px 6px',
                         backgroundColor: textItem.isDeleted || textItem.isEdited ? '#ffffff' : undefined, // White background for modifications
                         boxShadow: textItem.isDeleted || textItem.isEdited ? '0 2px 8px rgba(0,0,0,0.15)' : undefined,
+                        borderRadius: '4px',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log("[DEBUG] Clicked text item:", textItem.text, "Mode:", textInteractionMode);
                         if (textInteractionMode === "edit" && !textItem.isDeleted) {
                           setSelectedTextItem(textItem);
                           console.log("[DEBUG] setSelectedTextItem:", textItem);
@@ -2652,15 +2654,15 @@ export default function EditorPage() {
                   {/* Extracted text edit interface */}
                   {selectedTextItem && textInteractionMode === "edit" && (
                     <div
-                      className="absolute border-2 border-green-500 bg-white rounded p-2 shadow-lg pointer-events-auto"
+                      className="absolute border-2 border-green-500 bg-white rounded p-3 shadow-xl pointer-events-auto z-50"
                       style={{
                         left: selectedTextItem.x * scale,
                         top: (selectedTextItem.y + selectedTextItem.height + 10) * scale,
-                        width: Math.max(selectedTextItem.width * scale, 250),
-                        zIndex: 1000,
+                        width: Math.max(selectedTextItem.width * scale, 280),
+                        maxWidth: '400px',
                       }}
                     >
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="text-sm font-medium text-gray-700">
                           Edit Text: "{selectedTextItem.text}"
                         </div>
